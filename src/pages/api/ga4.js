@@ -43,9 +43,8 @@ export default async function handler(req, res) {
         metrics: metrics
           ? metrics.split(',').map(m => ({ name: m.trim() }))
           : [
-              { name: 'sessions' }, { name: 'totalUsers' }, { name: 'newUsers' },
-              { name: 'screenPageViews' }, { name: 'conversions' }, { name: 'totalRevenue' },
-              { name: 'itemRevenue' }, { name: 'purchaseRevenue' },
+              { name: 'sessions' }, { name: 'totalUsers' },
+              { name: 'screenPageViews' }, { name: 'eventCount' },
             ],
         dimensions: dimensions
           ? dimensions.split(',').map(d => ({ name: d.trim() }))

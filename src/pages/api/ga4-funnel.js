@@ -37,11 +37,12 @@ export default async function handler(req, res) {
 
     const dimensionsList = [{ name: dimension || 'date' }];
     const metricsList = [
-      { name: 'sessions' }, { name: 'sessionConversionRate' }, { name: 'totalUsers' },
-      { name: 'screenPageViews' }, { name: 'itemsViewed' }, { name: 'itemsAddedToCart' },
-      { name: 'itemsCheckedOut' }, { name: 'itemsPurchased' }, { name: 'itemPurchaseQuantity' },
-      { name: 'itemRevenue' }, { name: 'purchaseRevenue' }, { name: 'totalRevenue' },
-      { name: 'transactions' }, { name: 'transactionRevenue' },
+      { name: 'sessions' }, { name: 'totalUsers' },
+      { name: 'screenPageViews' }, { name: 'eventCount' },
+      { name: 'itemsViewed' }, { name: 'itemsAddedToCart' },
+      { name: 'itemsCheckedOut' }, { name: 'itemsPurchased' },
+      { name: 'itemRevenue' }, { name: 'purchaseRevenue' },
+      { name: 'transactions' },
     ];
 
     const response = await analyticsData.properties.runReport({
