@@ -7,3 +7,4 @@ out/
 .vercel
 scripts/oauth-credentials.json
 scripts/oauth-token.json
+.env*

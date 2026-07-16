@@ -1,7 +1,7 @@
 // OAuth2 callback handler — принимает authorization code от Google
 const { google } = require('googleapis');
 
-export default async function oauthCallback(req, res) {
+module.exports = async (req, res) => {
   const { code, error } = req.query;
 
   if (error) {
