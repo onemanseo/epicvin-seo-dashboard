@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     const dimensionsList = [{ name: dimension || 'date' }];
     const metricsList = [
       { name: 'sessions' }, { name: 'totalUsers' },
-      { name: 'screenPageViews' }, { name: 'eventCount' },
+      { name: 'screenPageViews' },
       { name: 'itemsViewed' }, { name: 'itemsAddedToCart' },
       { name: 'itemsCheckedOut' }, { name: 'itemsPurchased' },
       { name: 'itemRevenue' }, { name: 'purchaseRevenue' },
