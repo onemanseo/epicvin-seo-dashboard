@@ -30,7 +30,7 @@ export default async function handler(req, res) {
     const auth = getAuth();
     const webmasters = google.webmasters({ version: 'v3', auth });
 
-    const { siteUrl, startDate, endDate, dimensions, branded } = req.query;
+    const { siteUrl, startDate, endDate, dimensions, branded, rowLimit } = req.query;
 
     if (!siteUrl) {
       return res.status(400).json({ error: 'siteUrl is required' });
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       startDate: startDate || defStart,
       endDate: endDate || defEnd,
       dimensions: dimensions ? dimensions.split(',') : ['date'],
-      rowLimit: 25000,
+      rowLimit: parseInt(rowLimit || '25000'),
       aggregationType: 'auto',
     };
 
