@@ -140,23 +140,50 @@ export default function Dashboard() {
   const ga4Rows = parseRows(ga4Data);
   const ecomRows = parseRows(ecomData).map(r => ({ ...r, _dim: r._dim || '—' }));
 
+  // ── Build merged daily data ──
+  function normalizeDate(d) {
+    // GA4 returns "20260312", GSC returns "2026-03-12"
+    if (!d) return '';
+    return d.replace(/-/g, '');
+  }
+
+  // Build a lookup map from GA4 rows by normalized date
+  const ga4ByDate = {};
+  ga4Rows.forEach(r => { ga4ByDate[normalizeDate(r._dim)] = r; });
+
+  // Merge GSC daily rows with GA4 daily data
+  function mergeByDate(gscRow) {
+    const key = normalizeDate(gscRow._dim);
+    const ga = ga4ByDate[key] || {};
+    return {
+      ...gscRow,
+      sessions: ga.sessions || 0,
+      totalUsers: ga.totalUsers || 0,
+      totalRevenue: ga.totalRevenue || 0,
+      transactions: ga.transactions || 0,
+      conversions: ga.conversions || 0,
+      screenPageViews: ga.screenPageViews || 0,
+      eventCount: ga.eventCount || 0,
+    };
+  }
+
+  const mergedDaily = gscRows.map(mergeByDate);
+
   const gscTotals = gscRows.reduce((acc, r) => ({
     clicks: (acc.clicks || 0) + (r.clicks || 0),
     impressions: (acc.impressions || 0) + (r.impressions || 0),
-    ctr: (acc.ctr || 0) + (r.ctr || 0),
-    position: (acc.position || 0) + (r.position || 0),
   }), {});
-  if (gscRows.length > 0) {
-    gscTotals.ctr = (gscTotals.clicks / gscTotals.impressions) * 100;
-    gscTotals.position = gscTotals.position / gscRows.length;
-  }
+  gscTotals.ctr = gscTotals.clicks && gscTotals.impressions
+    ? (gscTotals.clicks / gscTotals.impressions) * 100 : 0;
+  gscTotals.position = gscRows.length
+    ? gscRows.reduce((s, r) => s + (r.position || 0), 0) / gscRows.length : 0;
 
+  const totalUsers = ga4Rows.reduce((s, r) => s + (r.totalUsers || 0), 0);
   const totalRevenue = ga4Rows.reduce((s, r) => s + (r.totalRevenue || 0), 0);
   const transactions = ga4Rows.reduce((s, r) => s + (r.transactions || 0), 0);
   const itemRevenue = ecomRows.reduce((s, r) => s + (r.itemRevenue || 0), 0);
   const itemsPurchased = ecomRows.reduce((s, r) => s + (r.itemsPurchased || 0), 0);
   const sessions = ga4Rows.reduce((s, r) => s + (r.sessions || 0), 0);
-  const totalUsers = ga4Rows.reduce((s, r) => s + (r.totalUsers || 0), 0);
   const clicks = gscTotals.clicks || 0;
   const impressions = gscTotals.impressions || 0;
 
@@ -169,19 +196,24 @@ export default function Dashboard() {
   let tableHeaders = [];
   let tableRows = [];
   let tableTotals = null;
+  let totalSessionsCalc = sessions;
+  let totalRevenueCalc = totalRevenue;
 
   if (dimension === 'date') {
     tableTitle = 'Daily Breakdown';
     tableHeaders = ['Date', 'Clicks', 'Impressions', 'CTR', 'Position', 'Sessions', 'Revenue'];
-    tableRows = gscRows.map(r => ({
+    const dailySum = mergedDaily.reduce((s, r) => ({ sessions: s.sessions + (r.sessions || 0), revenue: s.revenue + (r.totalRevenue || 0) }), { sessions: 0, revenue: 0 });
+    totalSessionsCalc = dailySum.sessions;
+    totalRevenueCalc = dailySum.revenue;
+    tableRows = mergedDaily.map(r => ({
       cells: [
         { val: r._dim },
         { val: fmt(r.clicks) },
         { val: fmt(r.impressions) },
         { val: fmtPct(r.ctr) },
         { val: r.position?.toFixed(1) || '—' },
-        { val: fmt(sessions) },
-        { val: fmtCurr(totalRevenue) },
+        { val: fmt(r.sessions) },
+        { val: fmtCurr(r.totalRevenue), class: 'text-green-400' },
       ],
     }));
     tableTotals = [
@@ -190,8 +222,8 @@ export default function Dashboard() {
       { val: fmt(impressions) },
       { val: fmtPct(gscTotals.ctr / 100) },
       { val: gscTotals.position?.toFixed(1) || '—' },
-      { val: fmt(sessions) },
-      { val: fmtCurr(totalRevenue), class: 'text-green-400' },
+      { val: fmt(totalSessionsCalc) },
+      { val: fmtCurr(totalRevenueCalc), class: 'text-green-400 font-bold' },
     ];
   }
 
