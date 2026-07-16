@@ -42,8 +42,6 @@ export default async function handler(req, res) {
         metrics: [
           { name: 'itemRevenue' },
           { name: 'itemsPurchased' },
-          { name: 'purchaseRevenue' },
-          { name: 'transactions' },
         ],
         dimensions: [{ name: dimension || 'date' }],
         limit: 25000,
