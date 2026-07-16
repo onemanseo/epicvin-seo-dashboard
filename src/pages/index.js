@@ -26,10 +26,74 @@ const DIMENSIONS = [
   { label: 'By Query', value: 'query' },
 ];
 
+// ─── helpers ───────────────────────────────────────────────
+function parseRows(data) {
+  if (!data || !data.rows) return [];
+  return data.rows.map(row => {
+    const obj = { _dim: row.dimensionValues?.[0]?.value || '—' };
+    row.metricValues?.forEach((mv, i) => {
+      const key = data.metricHeaders?.[i]?.name || `m${i}`;
+      obj[key] = parseFloat(mv.value);
+    });
+    return obj;
+  });
+}
+
+function parseGscRows(data) {
+  if (!data || !data.rows) return [];
+  return data.rows.map(row => ({
+    _dim: row.keys?.[0] || row.keys?.join(', ') || '—',
+    clicks: row.clicks,
+    impressions: row.impressions,
+    ctr: row.ctr,
+    position: row.position,
+  }));
+}
+
+// ─── table components per dimension ─────────────────────────
+function DataTable({ title, headers, rows, totals }) {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div className="dashboard-grid mb-6">
+      <div className="col-span-full card">
+        <div className="card-header"><span className="card-title">{title}</span></div>
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <table className="w-full text-xs md:text-sm">
+            <thead className="sticky top-0 bg-[#1e293b]">
+              <tr className="text-slate-400 border-b border-slate-700">
+                {headers.map((h, i) => (
+                  <th key={i} className={`py-2 ${i === 0 ? 'text-left pr-4' : 'text-right px-3'}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 200).map((row, i) => (
+                <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/50">
+                  {row.cells.map((cell, j) => (
+                    <td key={j} className={`py-1.5 ${j === 0 ? 'text-left pr-4 text-brand-300 truncate max-w-xs' : 'text-right px-3'} ${cell.class || ''}`}>{cell.val}</td>
+                  ))}
+                </tr>
+              ))}
+              {totals && (
+                <tr className="border-t border-slate-600 font-semibold text-slate-200 bg-slate-800/50">
+                  {totals.map((cell, j) => (
+                    <td key={j} className={`py-2 ${j === 0 ? 'text-left pr-4' : 'text-right px-3'} ${cell.class || ''}`}>{cell.val}</td>
+                  ))}
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── main dashboard ─────────────────────────────────────────
 export default function Dashboard() {
   const [periodIdx, setPeriodIdx] = useState(0);
   const [dimension, setDimension] = useState('date');
-  const [organicOnly, setOrganicOnly] = useState(false);
+  const [organicOnly, setOrganicOnly] = useState(true);    // ON by default
   const [brandedFilter, setBrandedFilter] = useState('total');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -72,37 +136,9 @@ export default function Dashboard() {
     }
   }
 
-  function parseRows(data) {
-    if (!data || !data.rows) return [];
-    return data.rows.map(row => {
-      const obj = { date: row.dimensionValues?.[0]?.value || row.dimensionValues?.[0] || '—' };
-      row.metricValues?.forEach((mv, i) => {
-        const key = data.metricHeaders?.[i]?.name || `m${i}`;
-        obj[key] = parseFloat(mv.value);
-      });
-      return obj;
-    });
-  }
-
-  // GSC has flat keys (no dimensionValues/metricValues array format)
-  function parseGscRows(data) {
-    if (!data || !data.rows) return [];
-    return data.rows.map(row => {
-      const obj = {
-        date: row.keys?.[0] || row.keys?.join(', ') || '—',
-        keys: row.keys || [],
-      };
-      if (row.clicks !== undefined) obj.clicks = row.clicks;
-      if (row.impressions !== undefined) obj.impressions = row.impressions;
-      if (row.ctr !== undefined) obj.ctr = row.ctr;
-      if (row.position !== undefined) obj.position = row.position;
-      return obj;
-    });
-  }
-
   const gscRows = parseGscRows(gscData);
   const ga4Rows = parseRows(ga4Data);
-  const ecomRows = parseRows(ecomData);
+  const ecomRows = parseRows(ecomData).map(r => ({ ...r, _dim: r._dim || '—' }));
 
   const gscTotals = gscRows.reduce((acc, r) => ({
     clicks: (acc.clicks || 0) + (r.clicks || 0),
@@ -111,17 +147,9 @@ export default function Dashboard() {
     position: (acc.position || 0) + (r.position || 0),
   }), {});
   if (gscRows.length > 0) {
-    gscTotals.ctr = (gscTotals.ctr / gscRows.length) * 100;
+    gscTotals.ctr = (gscTotals.clicks / gscTotals.impressions) * 100;
     gscTotals.position = gscTotals.position / gscRows.length;
   }
-
-  const funnelSteps = [
-    { name: 'Sessions', key: 'sessions', value: ga4Rows.reduce((s, r) => s + (r.sessions || 0), 0) },
-    { name: 'Users', key: 'totalUsers', value: ga4Rows.reduce((s, r) => s + (r.totalUsers || 0), 0) },
-    { name: 'Page Views', key: 'screenPageViews', value: ga4Rows.reduce((s, r) => s + (r.screenPageViews || 0), 0) },
-    { name: 'Key Events', key: 'conversions', value: ga4Rows.reduce((s, r) => s + (r.conversions || 0), 0) },
-    { name: 'Revenue', key: 'totalRevenue', value: ga4Rows.reduce((s, r) => s + (r.totalRevenue || 0), 0) },
-  ];
 
   const totalRevenue = ga4Rows.reduce((s, r) => s + (r.totalRevenue || 0), 0);
   const transactions = ga4Rows.reduce((s, r) => s + (r.transactions || 0), 0);
@@ -131,6 +159,141 @@ export default function Dashboard() {
   const totalUsers = ga4Rows.reduce((s, r) => s + (r.totalUsers || 0), 0);
   const clicks = gscTotals.clicks || 0;
   const impressions = gscTotals.impressions || 0;
+
+  // ── Build table data ──
+  function fmt(v) { return v?.toLocaleString?.() ?? v ?? 0; }
+  function fmtPct(v) { return v != null ? `${(v * 100).toFixed(1)}%` : '—'; }
+  function fmtCurr(v) { return `$${fmt(v)}`; }
+
+  let tableTitle = '';
+  let tableHeaders = [];
+  let tableRows = [];
+  let tableTotals = null;
+
+  if (dimension === 'date') {
+    tableTitle = 'Daily Breakdown';
+    tableHeaders = ['Date', 'Clicks', 'Impressions', 'CTR', 'Position', 'Sessions', 'Revenue'];
+    tableRows = gscRows.map(r => ({
+      cells: [
+        { val: r._dim },
+        { val: fmt(r.clicks) },
+        { val: fmt(r.impressions) },
+        { val: fmtPct(r.ctr) },
+        { val: r.position?.toFixed(1) || '—' },
+        { val: fmt(sessions) },
+        { val: fmtCurr(totalRevenue) },
+      ],
+    }));
+    tableTotals = [
+      { val: 'Total' },
+      { val: fmt(clicks) },
+      { val: fmt(impressions) },
+      { val: fmtPct(gscTotals.ctr / 100) },
+      { val: gscTotals.position?.toFixed(1) || '—' },
+      { val: fmt(sessions) },
+      { val: fmtCurr(totalRevenue), class: 'text-green-400' },
+    ];
+  }
+
+  if (dimension === 'query') {
+    tableTitle = 'Top Queries by Clicks';
+    tableHeaders = ['Query', 'Clicks', 'Impressions', 'CTR', 'Position'];
+    tableRows = gscRows.map(r => ({
+      cells: [
+        { val: r._dim },
+        { val: fmt(r.clicks) },
+        { val: fmt(r.impressions) },
+        { val: fmtPct(r.ctr) },
+        { val: r.position?.toFixed(1) || '—' },
+      ],
+    }));
+    tableTotals = [
+      { val: 'Total' },
+      { val: fmt(clicks) },
+      { val: fmt(impressions) },
+      { val: fmtPct(gscTotals.ctr / 100) },
+      { val: gscTotals.position?.toFixed(1) || '—' },
+    ];
+  }
+
+  if (dimension === 'page') {
+    // GSC table
+    tableTitle = 'Top Pages by Clicks (GSC)';
+    tableHeaders = ['Page URL', 'Clicks', 'Impressions', 'CTR', 'Position'];
+    tableRows = gscRows.map(r => ({
+      cells: [
+        { val: r._dim },
+        { val: fmt(r.clicks) },
+        { val: fmt(r.impressions) },
+        { val: fmtPct(r.ctr) },
+        { val: r.position?.toFixed(1) || '—' },
+      ],
+    }));
+    tableTotals = [
+      { val: 'Total' },
+      { val: fmt(clicks) },
+      { val: fmt(impressions) },
+      { val: fmtPct(gscTotals.ctr / 100) },
+      { val: gscTotals.position?.toFixed(1) || '—' },
+    ];
+  }
+
+  if (dimension === 'country') {
+    tableTitle = 'By Country';
+    tableHeaders = ['Country', 'Clicks', 'Impressions', 'CTR', 'Position', 'Sessions', 'Revenue'];
+    tableRows = gscRows.map(r => ({
+      cells: [
+        { val: r._dim },
+        { val: fmt(r.clicks) },
+        { val: fmt(r.impressions) },
+        { val: fmtPct(r.ctr) },
+        { val: r.position?.toFixed(1) || '—' },
+        { val: fmt(sessions) },
+        { val: fmtCurr(totalRevenue) },
+      ],
+    }));
+  }
+
+  if (dimension === 'device') {
+    tableTitle = 'By Device';
+    tableHeaders = ['Device', 'Clicks', 'Impressions', 'CTR', 'Position', 'Sessions', 'Revenue'];
+    tableRows = gscRows.map(r => ({
+      cells: [
+        { val: r._dim },
+        { val: fmt(r.clicks) },
+        { val: fmt(r.impressions) },
+        { val: fmtPct(r.ctr) },
+        { val: r.position?.toFixed(1) || '—' },
+        { val: fmt(sessions) },
+        { val: fmtCurr(totalRevenue) },
+      ],
+    }));
+  }
+
+  // ── Build GA4 revenue table (always shown when page selected) ──
+  let revTable = null;
+  if (dimension === 'page' && ecomRows.length > 0) {
+    const revTotal = ecomRows.reduce((s, r) => s + (r.itemRevenue || 0), 0);
+    const purTotal = ecomRows.reduce((s, r) => s + (r.itemsPurchased || 0), 0);
+    revTable = (
+      <DataTable
+        title={`Revenue by Page (GA4 Organic) — Total: $${revTotal.toLocaleString()}`}
+        headers={['Page Path', 'Item Revenue', 'Items Purchased']}
+        rows={ecomRows.map(r => ({
+          cells: [
+            { val: r._dim },
+            { val: fmtCurr(r.itemRevenue || 0), class: 'text-green-400' },
+            { val: fmt(r.itemsPurchased || 0) },
+          ],
+        }))}
+        totals={[
+          { val: `Total (${ecomRows.length} pages)` },
+          { val: fmtCurr(revTotal), class: 'text-green-400 font-bold' },
+          { val: fmt(purTotal), class: 'font-bold' },
+        ]}
+      />
+    );
+  }
 
   if (!propertyId) {
     return (
@@ -161,64 +324,33 @@ export default function Dashboard() {
           </div>
           <div className="flex gap-2 flex-wrap">
             {PERIODS.slice(0, 6).map((p, i) => (
-              <button
-                key={i}
-                onClick={() => setPeriodIdx(i)}
+              <button key={i} onClick={() => setPeriodIdx(i)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                  periodIdx === i
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {p.label}
-              </button>
+                  periodIdx === i ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}>{p.label}</button>
             ))}
-            <select
-              value={periodIdx}
-              onChange={e => setPeriodIdx(Number(e.target.value))}
-              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
-            >
-              {PERIODS.map((p, i) => (
-                <option key={i} value={i}>{p.label}</option>
-              ))}
+            <select value={periodIdx} onChange={e => setPeriodIdx(Number(e.target.value))}
+              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs">
+              {PERIODS.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
             </select>
-            <select
-              value={dimension}
-              onChange={e => setDimension(e.target.value)}
-              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
-            >
-              {DIMENSIONS.map(d => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
+            <select value={dimension} onChange={e => setDimension(e.target.value)}
+              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs">
+              {DIMENSIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
-            {/* Organic-only toggle */}
-            <button
-              onClick={() => setOrganicOnly(!organicOnly)}
+            <button onClick={() => setOrganicOnly(!organicOnly)}
               className={`px-2 py-1.5 rounded-lg text-xs font-medium transition ${
-                organicOnly
-                  ? 'bg-green-600 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-              }`}
-              title="Filter GA4 data to organic traffic only"
-            >
+                organicOnly ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`} title="Filter GA4 data to organic traffic only">
               🌿{organicOnly ? ' Organic' : ' All Traffic'}
             </button>
-            {/* Branded / non-branded selector */}
-            <select
-              value={brandedFilter}
-              onChange={e => setBrandedFilter(e.target.value)}
-              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
-            >
+            <select value={brandedFilter} onChange={e => setBrandedFilter(e.target.value)}
+              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs">
               <option value="total">🔍 All Queries</option>
               <option value="branded">🏷️ Branded</option>
               <option value="nonbranded">📝 Non-branded</option>
             </select>
-            <button
-              onClick={loadAll}
-              className="bg-brand-600 hover:bg-brand-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition"
-            >
-              ↻ Refresh
-            </button>
+            <button onClick={loadAll}
+              className="bg-brand-600 hover:bg-brand-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">↻ Refresh</button>
           </div>
         </div>
       </div>
@@ -239,141 +371,57 @@ export default function Dashboard() {
         <>
           {/* KPI cards */}
           <div className="dashboard-grid mb-6">
-            <div className="col-span-4 md:col-span-2">
-              <MetricCard title="Organic Clicks" value={clicks} icon="🖱" />
-            </div>
-            <div className="col-span-4 md:col-span-2">
-              <MetricCard title="Impressions" value={impressions} icon="👁" />
-            </div>
-            <div className="col-span-4 md:col-span-2">
-              <MetricCard title="Avg CTR" value={gscTotals.ctr} format="percent" icon="📊" />
-            </div>
-            <div className="col-span-4 md:col-span-2">
-              <MetricCard title="Avg Position" value={gscTotals.position?.toFixed(1)} icon="🎯" />
-            </div>
-            <div className="col-span-4 md:col-span-2">
-              <MetricCard title="Sessions" value={sessions} icon="👤" />
-            </div>
-            <div className="col-span-4 md:col-span-2">
-              <MetricCard title="Users" value={totalUsers} icon="👥" />
-            </div>
+            <div className="col-span-4 md:col-span-2"><MetricCard title="Organic Clicks" value={clicks} icon="🖱" /></div>
+            <div className="col-span-4 md:col-span-2"><MetricCard title="Impressions" value={impressions} icon="👁" /></div>
+            <div className="col-span-4 md:col-span-2"><MetricCard title="Avg CTR" value={gscTotals.ctr} format="percent" icon="📊" /></div>
+            <div className="col-span-4 md:col-span-2"><MetricCard title="Avg Position" value={gscTotals.position?.toFixed(1)} icon="🎯" /></div>
+            <div className="col-span-4 md:col-span-2"><MetricCard title="Sessions" value={sessions} icon="👤" /></div>
+            <div className="col-span-4 md:col-span-2"><MetricCard title="Users" value={totalUsers} icon="👥" /></div>
           </div>
 
           {/* Revenue row */}
           <div className="dashboard-grid mb-6">
-            <div className="col-span-6 md:col-span-3">
-              <MetricCard title="Total Revenue" value={totalRevenue} format="currency" icon="💰" />
-            </div>
-            <div className="col-span-6 md:col-span-3">
-              <MetricCard title="Item Revenue" value={itemRevenue} format="currency" icon="🛍️" />
-            </div>
-            <div className="col-span-6 md:col-span-3">
-              <MetricCard title="Items Purchased" value={itemsPurchased} icon="📦" />
-            </div>
-            <div className="col-span-6 md:col-span-3">
-              <MetricCard title="Transactions" value={transactions} icon="🛒" />
-            </div>
+            <div className="col-span-6 md:col-span-3"><MetricCard title="Total Revenue" value={totalRevenue} format="currency" icon="💰" /></div>
+            <div className="col-span-6 md:col-span-3"><MetricCard title="Item Revenue" value={itemRevenue} format="currency" icon="🛍️" /></div>
+            <div className="col-span-6 md:col-span-3"><MetricCard title="Items Purchased" value={itemsPurchased} icon="📦" /></div>
+            <div className="col-span-6 md:col-span-3"><MetricCard title="Transactions" value={transactions} icon="🛒" /></div>
           </div>
+
+          {/* ── MAIN DATA TABLE ── */}
+          {tableRows.length > 0 && (
+            <DataTable title={tableTitle} headers={tableHeaders} rows={tableRows} totals={tableTotals} />
+          )}
+
+          {/* ── REVENUE TABLE (GA4, page dimension) ── */}
+          {revTable}
 
           {/* Funnel */}
           <div className="dashboard-grid mb-6">
-            <FunnelChart data={funnelSteps} title="Organic → Revenue Funnel" />
+            <FunnelChart data={[
+              { name: 'Sessions', key: 'sessions', value: sessions },
+              { name: 'Users', key: 'totalUsers', value: totalUsers },
+              { name: 'Key Events', key: 'conversions', value: ga4Rows.reduce((s, r) => s + (r.conversions || 0), 0) },
+              { name: 'Revenue', key: 'totalRevenue', value: totalRevenue },
+            ]} title="Organic → Revenue Funnel" />
           </div>
 
-          {/* Time series */}
-          <div className="dashboard-grid mb-6">
-            <div className="col-span-full md:col-span-6">
-              <TimeSeriesChart
-                data={gscRows}
-                lines={[{ key: 'clicks', label: 'Clicks' }, { key: 'impressions', label: 'Impressions' }]}
-                title="GSC: Clicks & Impressions"
-                type="area"
-              />
-            </div>
-            <div className="col-span-full md:col-span-6">
-              <TimeSeriesChart
-                data={ga4Rows}
-                lines={[{ key: 'sessions', label: 'Sessions' }, { key: 'totalRevenue', label: 'Revenue ($)' }]}
-                title="Sessions & Revenue"
-                type="area"
-              />
-            </div>
-          </div>
-
-          {/* Ecommerce time series */}
-          <div className="dashboard-grid mb-6">
-            <div className="col-span-full md:col-span-6">
-              <TimeSeriesChart
-                data={gscRows}
-                lines={[{ key: 'ctr', label: 'CTR (%)' }]}
-                title="GSC CTR"
-              />
-            </div>
-            <div className="col-span-full md:col-span-6">
-              <TimeSeriesChart
-                data={ecomRows}
-                lines={[
-                  { key: 'itemRevenue', label: 'Item Revenue ($)' },
-                  { key: 'itemsPurchased', label: 'Items Purchased' },
-                ]}
-                title="Ecommerce Revenue & Purchases"
-                type="area"
-              />
-            </div>
-          </div>
-
-          {/* Pages table with revenue */}
-          {dimension === 'page' && (
-            <div className="dashboard-grid mb-6">
-              <div className="col-span-full card">
-                <div className="card-header">
-                  <span className="card-title">Top Pages by Clicks & Revenue</span>
+          {/* Time series — only for date dimension */}
+          {dimension === 'date' && (
+            <>
+              <div className="dashboard-grid mb-6">
+                <div className="col-span-full md:col-span-6">
+                  <TimeSeriesChart data={gscRows} lines={[{ key: 'clicks', label: 'Clicks' }, { key: 'impressions', label: 'Impressions' }]} title="GSC: Clicks & Impressions" type="area" />
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-slate-400 border-b border-slate-700">
-                        <th className="text-left py-2 pr-4">Page</th>
-                        <th className="text-right py-2 px-4">Clicks</th>
-                        <th className="text-right py-2 px-4">Impressions</th>
-                        <th className="text-right py-2 px-4">Revenue</th>
-                        <th className="text-right py-2 px-4">Items Purchased</th>
-                        <th className="text-right py-2 pl-4">Position</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        // Merge GSC page data with GA4 revenue by URL path
-                        const revByPath = {};
-                        ecomRows.forEach(r => {
-                          const path = r.date || '—';
-                          revByPath[path] = { revenue: r.itemRevenue || 0, purchased: r.itemsPurchased || 0 };
-                        });
-
-                        const merged = gscRows.map(r => {
-                          // Extract path from full URL
-                          let path = r.date || '—';
-                          try { path = new URL(r.date).pathname; } catch(e) {}
-                          const rev = revByPath[path] || {};
-                          return { ...r, pagePath: r.date || '—', path, ...rev };
-                        });
-
-                        return merged.slice(0, 50).map((row, i) => (
-                          <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/50">
-                            <td className="py-2 pr-4 text-brand-300 truncate max-w-xs">{row.pagePath}</td>
-                            <td className="text-right py-2 px-4">{row.clicks?.toLocaleString() || 0}</td>
-                            <td className="text-right py-2 px-4">{row.impressions?.toLocaleString() || 0}</td>
-                            <td className="text-right py-2 px-4 text-green-400">${(row.revenue || 0).toLocaleString()}</td>
-                            <td className="text-right py-2 px-4">{row.purchased || 0}</td>
-                            <td className="text-right py-2 pl-4">{row.position?.toFixed(1) || '—'}</td>
-                          </tr>
-                        ));
-                      })()}
-                    </tbody>
-                  </table>
+                <div className="col-span-full md:col-span-6">
+                  <TimeSeriesChart data={ga4Rows} lines={[{ key: 'sessions', label: 'Sessions' }, { key: 'totalRevenue', label: 'Revenue ($)' }]} title="Sessions & Revenue" type="area" />
                 </div>
               </div>
-            </div>
+              <div className="dashboard-grid mb-6">
+                <div className="col-span-full md:col-span-6">
+                  <TimeSeriesChart data={ecomRows} lines={[{ key: 'itemRevenue', label: 'Item Revenue ($)' }, { key: 'itemsPurchased', label: 'Items Purchased' }]} title="Ecommerce Revenue & Purchases" type="area" />
+                </div>
+              </div>
+            </>
           )}
 
           <div className="dashboard-grid">
