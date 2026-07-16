@@ -29,23 +29,34 @@ export default async function handler(req, res) {
   try {
     const auth = getAuth();
     const analyticsData = google.analyticsdata({ version: 'v1beta', auth });
-    const { propertyId, startDate, endDate, dimension } = req.query;
+    const { propertyId, startDate, endDate, dimension, channel } = req.query;
 
     if (!propertyId) {
       return res.status(400).json({ error: 'propertyId is required' });
     }
 
+    const requestBody = {
+      dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
+      metrics: [
+        { name: 'itemRevenue' },
+        { name: 'itemsPurchased' },
+      ],
+      dimensions: [{ name: dimension || 'date' }],
+      limit: 25000,
+    };
+
+    if (channel === 'organic') {
+      requestBody.dimensionFilter = {
+        filter: {
+          fieldName: 'sessionPrimaryChannelGroup',
+          stringFilter: { value: 'Organic Search', matchType: 'EXACT' },
+        },
+      };
+    }
+
     const response = await analyticsData.properties.runReport({
       property: `properties/${propertyId}`,
-      requestBody: {
-        dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
-        metrics: [
-          { name: 'itemRevenue' },
-          { name: 'itemsPurchased' },
-        ],
-        dimensions: [{ name: dimension || 'date' }],
-        limit: 25000,
-      },
+      requestBody,
     });
 
     res.status(200).json(response.data);

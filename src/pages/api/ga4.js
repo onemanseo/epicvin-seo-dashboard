@@ -30,30 +30,42 @@ export default async function handler(req, res) {
     const auth = getAuth();
     const analyticsData = google.analyticsdata({ version: 'v1beta', auth });
 
-    const { propertyId, startDate, endDate, metrics, dimensions, limit } = req.query;
+    const { propertyId, startDate, endDate, metrics, dimensions, limit, channel } = req.query;
 
     if (!propertyId) {
       return res.status(400).json({ error: 'propertyId is required' });
     }
 
+    const requestBody = {
+      dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
+      metrics: metrics
+        ? metrics.split(',').map(m => ({ name: m.trim() }))
+        : [
+            { name: 'sessions' }, { name: 'totalUsers' },
+            { name: 'screenPageViews' }, { name: 'eventCount' },
+            { name: 'conversions' }, { name: 'totalRevenue' },
+            { name: 'transactions' },
+          ],
+      dimensions: dimensions
+        ? dimensions.split(',').map(d => ({ name: d.trim() }))
+        : [{ name: 'date' }],
+      limit: parseInt(limit || '10000'),
+      returnPropertyQuota: true,
+    };
+
+    // Apply organic-only filter
+    if (channel === 'organic') {
+      requestBody.dimensionFilter = {
+        filter: {
+          fieldName: 'sessionPrimaryChannelGroup',
+          stringFilter: { value: 'Organic Search', matchType: 'EXACT' },
+        },
+      };
+    }
+
     const response = await analyticsData.properties.runReport({
       property: `properties/${propertyId}`,
-      requestBody: {
-        dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
-        metrics: metrics
-          ? metrics.split(',').map(m => ({ name: m.trim() }))
-          : [
-              { name: 'sessions' }, { name: 'totalUsers' },
-              { name: 'screenPageViews' }, { name: 'eventCount' },
-              { name: 'conversions' }, { name: 'totalRevenue' },
-              { name: 'transactions' },
-            ],
-        dimensions: dimensions
-          ? dimensions.split(',').map(d => ({ name: d.trim() }))
-          : [{ name: 'date' }],
-        limit: parseInt(limit || '10000'),
-        returnPropertyQuota: true,
-      },
+      requestBody,
     });
 
     res.status(200).json(response.data);

@@ -29,6 +29,8 @@ const DIMENSIONS = [
 export default function Dashboard() {
   const [periodIdx, setPeriodIdx] = useState(0);
   const [dimension, setDimension] = useState('date');
+  const [organicOnly, setOrganicOnly] = useState(false);
+  const [brandedFilter, setBrandedFilter] = useState('total');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -43,19 +45,21 @@ export default function Dashboard() {
   useEffect(() => {
     if (!propertyId) return;
     loadAll();
-  }, [periodIdx, dimension]);
+  }, [periodIdx, dimension, organicOnly, brandedFilter]);
 
   async function loadAll() {
     setLoading(true);
     setError(null);
     const period = PERIODS[periodIdx];
+    const channel = organicOnly ? 'organic' : '';
+    const branded = brandedFilter !== 'total' ? brandedFilter : '';
 
     try {
       const [gsc, ga4, funnel, ecom] = await Promise.all([
-        fetchGSC({ siteUrl, startDate: period.start, endDate: period.end, dimensions: dimension }),
-        fetchGA4({ propertyId, startDate: period.start, endDate: period.end, dimensions: dimension }),
-        fetchFunnel({ propertyId, startDate: period.start, endDate: period.end, dimension }),
-        fetchEcommerce({ propertyId, startDate: period.start, endDate: period.end, dimension }),
+        fetchGSC({ siteUrl, startDate: period.start, endDate: period.end, dimensions: dimension, branded }),
+        fetchGA4({ propertyId, startDate: period.start, endDate: period.end, dimensions: dimension, channel }),
+        fetchFunnel({ propertyId, startDate: period.start, endDate: period.end, dimension, channel }),
+        fetchEcommerce({ propertyId, startDate: period.start, endDate: period.end, dimension, channel }),
       ]);
       setGscData(gsc);
       setGa4Data(ga4);
@@ -133,6 +137,8 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold">EpicVIN SEO Dashboard</h1>
             <p className="text-slate-400 text-sm mt-1">
               Period: {PERIODS[periodIdx].start} → {PERIODS[periodIdx].end}
+              {organicOnly && <span className="ml-2 text-green-400">| 🌿 Organic Only</span>}
+              {brandedFilter !== 'total' && <span className="ml-2 text-amber-400">| {brandedFilter === 'branded' ? '🏷️ Branded' : '📝 Non-branded'}</span>}
               <span className="ml-2 text-slate-500">| Items purchased: {itemsPurchased.toLocaleString()}</span>
               <span className="ml-2 text-green-400">| Item revenue: ${itemRevenue.toLocaleString()}</span>
             </p>
@@ -168,6 +174,28 @@ export default function Dashboard() {
               {DIMENSIONS.map(d => (
                 <option key={d.value} value={d.value}>{d.label}</option>
               ))}
+            </select>
+            {/* Organic-only toggle */}
+            <button
+              onClick={() => setOrganicOnly(!organicOnly)}
+              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition ${
+                organicOnly
+                  ? 'bg-green-600 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
+              title="Filter GA4 data to organic traffic only"
+            >
+              🌿{organicOnly ? ' Organic' : ' All Traffic'}
+            </button>
+            {/* Branded / non-branded selector */}
+            <select
+              value={brandedFilter}
+              onChange={e => setBrandedFilter(e.target.value)}
+              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
+            >
+              <option value="total">🔍 All Queries</option>
+              <option value="branded">🏷️ Branded</option>
+              <option value="nonbranded">📝 Non-branded</option>
             </select>
             <button
               onClick={loadAll}

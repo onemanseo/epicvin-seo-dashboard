@@ -30,7 +30,7 @@ export default async function handler(req, res) {
     const auth = getAuth();
     const webmasters = google.webmasters({ version: 'v3', auth });
 
-    const { siteUrl, startDate, endDate, dimensions } = req.query;
+    const { siteUrl, startDate, endDate, dimensions, branded } = req.query;
 
     if (!siteUrl) {
       return res.status(400).json({ error: 'siteUrl is required' });
@@ -39,15 +39,29 @@ export default async function handler(req, res) {
     const defStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const defEnd = new Date().toISOString().split('T')[0];
 
+    const requestBody = {
+      startDate: startDate || defStart,
+      endDate: endDate || defEnd,
+      dimensions: dimensions ? dimensions.split(',') : ['date'],
+      rowLimit: 25000,
+      aggregationType: 'auto',
+    };
+
+    // Branded / non-branded filter
+    if (branded === 'branded' || branded === 'nonbranded') {
+      const brandRegex = 'epicvin|epic vin|epicvin\\.com';
+      requestBody.dimensionFilterGroups = [{
+        filters: [{
+          dimension: 'query',
+          expression: brandRegex,
+          operator: branded === 'branded' ? 'includingRegex' : 'excludingRegex',
+        }],
+      }];
+    }
+
     const response = await webmasters.searchanalytics.query({
       siteUrl,
-      requestBody: {
-        startDate: startDate || defStart,
-        endDate: endDate || defEnd,
-        dimensions: dimensions ? dimensions.split(',') : ['date'],
-        rowLimit: 25000,
-        aggregationType: 'auto',
-      },
+      requestBody,
     });
 
     res.status(200).json(response.data);

@@ -29,17 +29,15 @@ export default async function handler(req, res) {
   try {
     const auth = getAuth();
     const analyticsData = google.analyticsdata({ version: 'v1beta', auth });
-    const { propertyId, startDate, endDate, dimension } = req.query;
+    const { propertyId, startDate, endDate, dimension, channel } = req.query;
 
     if (!propertyId) {
       return res.status(400).json({ error: 'propertyId is required' });
     }
 
-    // Compatible metrics that are available on epicvin.com
     const d = dimension || 'date';
-    
-    // Get sessions, users, pageviews, events
-    const baseMetrics = {
+
+    const requestBody = {
       dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
       metrics: [
         { name: 'sessions' }, { name: 'totalUsers' },
@@ -51,9 +49,18 @@ export default async function handler(req, res) {
       limit: 25000,
     };
 
+    if (channel === 'organic') {
+      requestBody.dimensionFilter = {
+        filter: {
+          fieldName: 'sessionPrimaryChannelGroup',
+          stringFilter: { value: 'Organic Search', matchType: 'EXACT' },
+        },
+      };
+    }
+
     const response = await analyticsData.properties.runReport({
       property: `properties/${propertyId}`,
-      requestBody: baseMetrics,
+      requestBody,
     });
 
     res.status(200).json(response.data);
