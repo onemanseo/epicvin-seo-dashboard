@@ -84,7 +84,23 @@ export default function Dashboard() {
     });
   }
 
-  const gscRows = parseRows(gscData);
+  // GSC has flat keys (no dimensionValues/metricValues array format)
+  function parseGscRows(data) {
+    if (!data || !data.rows) return [];
+    return data.rows.map(row => {
+      const obj = {
+        date: row.keys?.[0] || row.keys?.join(', ') || '—',
+        keys: row.keys || [],
+      };
+      if (row.clicks !== undefined) obj.clicks = row.clicks;
+      if (row.impressions !== undefined) obj.impressions = row.impressions;
+      if (row.ctr !== undefined) obj.ctr = row.ctr;
+      if (row.position !== undefined) obj.position = row.position;
+      return obj;
+    });
+  }
+
+  const gscRows = parseGscRows(gscData);
   const ga4Rows = parseRows(ga4Data);
   const ecomRows = parseRows(ecomData);
 
