@@ -1,4 +1,4 @@
-// E-commerce funnel report
+// GA4 funnel report
 const { google } = require('googleapis');
 
 function getAuth() {
@@ -35,24 +35,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'propertyId is required' });
     }
 
-    const dimensionsList = [{ name: dimension || 'date' }];
-    const metricsList = [
-      { name: 'sessions' }, { name: 'totalUsers' },
-      { name: 'screenPageViews' },
-      { name: 'itemsViewed' }, { name: 'itemsAddedToCart' },
-      { name: 'itemsCheckedOut' }, { name: 'itemsPurchased' },
-      { name: 'itemRevenue' }, { name: 'purchaseRevenue' },
-      { name: 'transactions' },
-    ];
+    // Compatible metrics that are available on epicvin.com
+    const d = dimension || 'date';
+    
+    // Get sessions, users, pageviews, events
+    const baseMetrics = {
+      dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
+      metrics: [
+        { name: 'sessions' }, { name: 'totalUsers' },
+        { name: 'screenPageViews' }, { name: 'eventCount' },
+        { name: 'conversions' }, { name: 'totalRevenue' },
+      ],
+      dimensions: [{ name: d }],
+      limit: 25000,
+    };
 
     const response = await analyticsData.properties.runReport({
       property: `properties/${propertyId}`,
-      requestBody: {
-        dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
-        metrics: metricsList,
-        dimensions: dimensionsList,
-        limit: 25000,
-      },
+      requestBody: baseMetrics,
     });
 
     res.status(200).json(response.data);

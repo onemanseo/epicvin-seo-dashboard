@@ -31,7 +31,7 @@ export default function Dashboard() {
   const [funnelData, setFunnelData] = useState(null);
 
   // Config from env
-  const siteUrl = process.env.NEXT_PUBLIC_GSC_SITE_URL || 'sc:epicvin.com';
+  const siteUrl = process.env.NEXT_PUBLIC_GSC_SITE_URL || 'https://epicvin.com/';
   const propertyId = process.env.NEXT_PUBLIC_GA4_PROPERTY_ID || '';
 
   useEffect(() => {
@@ -90,17 +90,16 @@ export default function Dashboard() {
 
   // Funnel construction
   const funnelSteps = [
-    { name: 'Organic Sessions', key: 'sessions', value: ga4Rows.reduce((s, r) => s + (r.sessions || 0), 0) },
-    { name: 'Items Viewed', key: 'itemsViewed', value: ga4Rows.reduce((s, r) => s + (r.itemsViewed || 0), 0) },
-    { name: 'Added to Cart', key: 'itemsAddedToCart', value: ga4Rows.reduce((s, r) => s + (r.itemsAddedToCart || 0), 0) },
-    { name: 'Checkouts Started', key: 'itemsCheckedOut', value: ga4Rows.reduce((s, r) => s + (r.itemsCheckedOut || 0), 0) },
-    { name: 'Purchases', key: 'itemsPurchased', value: ga4Rows.reduce((s, r) => s + (r.itemsPurchased || 0), 0) },
-    { name: 'Revenue', key: 'purchaseRevenue', value: ga4Rows.reduce((s, r) => s + (r.purchaseRevenue || 0), 0) },
+    { name: 'Sessions', key: 'sessions', value: ga4Rows.reduce((s, r) => s + (r.sessions || 0), 0) },
+    { name: 'Users', key: 'totalUsers', value: ga4Rows.reduce((s, r) => s + (r.totalUsers || 0), 0) },
+    { name: 'Page Views', key: 'screenPageViews', value: ga4Rows.reduce((s, r) => s + (r.screenPageViews || 0), 0) },
+    { name: 'Key Events', key: 'conversions', value: ga4Rows.reduce((s, r) => s + (r.conversions || 0), 0) },
+    { name: 'Revenue', key: 'totalRevenue', value: ga4Rows.reduce((s, r) => s + (r.totalRevenue || 0), 0) },
   ];
 
   // Revenue metrics
-  const totalRevenue = ga4Rows.reduce((s, r) => s + (r.totalRevenue || r.purchaseRevenue || 0), 0);
-  const transactions = ga4Rows.reduce((s, r) => s + (r.transactions || 0), 0);
+  const totalRevenue = ga4Rows.reduce((s, r) => s + (r.totalRevenue || 0), 0);
+  const conversions = ga4Rows.reduce((s, r) => s + (r.conversions || 0), 0);
   const sessions = ga4Rows.reduce((s, r) => s + (r.sessions || 0), 0);
   const totalUsers = ga4Rows.reduce((s, r) => s + (r.totalUsers || 0), 0);
   const clicks = gscTotals.clicks || 0;
@@ -198,17 +197,14 @@ export default function Dashboard() {
 
           {/* Revenue row */}
           <div className="dashboard-grid mb-6">
-            <div className="col-span-6 md:col-span-3">
+            <div className="col-span-6 md:col-span-4">
               <MetricCard title="Total Revenue" value={totalRevenue} format="currency" icon="💰" />
             </div>
-            <div className="col-span-6 md:col-span-3">
-              <MetricCard title="Transactions" value={transactions} icon="🛒" />
+            <div className="col-span-6 md:col-span-4">
+              <MetricCard title="Key Events" value={conversions} icon="⚡" />
             </div>
-            <div className="col-span-6 md:col-span-3">
+            <div className="col-span-6 md:col-span-4">
               <MetricCard title="Revenue / Session" value={sessions > 0 ? totalRevenue / sessions : 0} format="currency" icon="📈" />
-            </div>
-            <div className="col-span-6 md:col-span-3">
-              <MetricCard title="Conv. Rate" value={sessions > 0 ? (transactions / sessions) * 100 : 0} format="percent" icon="⚡" />
             </div>
           </div>
 
@@ -219,22 +215,11 @@ export default function Dashboard() {
 
           {/* Time series charts */}
           <div className="dashboard-grid mb-6">
-            <div className="col-span-full md:col-span-6">
+            <div className="col-span-full md:col-span-12">
               <TimeSeriesChart
                 data={gscRows}
                 lines={[{ key: 'clicks', label: 'Clicks' }, { key: 'impressions', label: 'Impressions' }]}
                 title="GSC: Clicks & Impressions"
-                type="area"
-              />
-            </div>
-            <div className="col-span-full md:col-span-6">
-              <TimeSeriesChart
-                data={ga4Rows}
-                lines={[
-                  { key: 'sessions', label: 'Sessions' },
-                  { key: 'totalRevenue', label: 'Revenue ($)' },
-                ]}
-                title="GA4: Sessions & Revenue"
                 type="area"
               />
             </div>
@@ -252,23 +237,25 @@ export default function Dashboard() {
             <div className="col-span-full md:col-span-6">
               <TimeSeriesChart
                 data={ga4Rows}
-                lines={[{ key: 'sessionConversionRate', label: 'Key Event Rate (%)' }]}
-                title="Session Key Event Rate"
+                lines={[
+                  { key: 'sessions', label: 'Sessions' },
+                  { key: 'conversions', label: 'Key Events' },
+                ]}
+                title="Sessions & Key Events"
               />
             </div>
           </div>
 
-          {/* Funnel time series */}
+          {/* Event time series */}
           <div className="dashboard-grid mb-6">
             <div className="col-span-full">
               <TimeSeriesChart
                 data={ga4Rows}
                 lines={[
-                  { key: 'itemsAddedToCart', label: 'Add to Cart' },
-                  { key: 'itemsCheckedOut', label: 'Checkouts' },
-                  { key: 'itemsPurchased', label: 'Purchases' },
+                  { key: 'totalRevenue', label: 'Revenue ($)' },
+                  { key: 'sessions', label: 'Sessions' },
                 ]}
-                title="E-commerce Events Over Time"
+                title="Revenue & Sessions Over Time"
                 type="area"
               />
             </div>
