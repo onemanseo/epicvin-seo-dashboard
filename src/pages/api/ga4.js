@@ -23,6 +23,22 @@ function getAuth() {
   throw new Error('No auth configured');
 }
 
+const GA4_DIMENSION_MAP = {
+  page: 'pagePath',
+  query: 'date',        // queries not available in GA4, fallback
+  device: 'deviceCategory',
+  country: 'country',
+  date: 'date',
+};
+
+function mapDimensions(dimensions) {
+  if (!dimensions) return [{ name: 'date' }];
+  return dimensions.split(',').map(d => {
+    const mapped = GA4_DIMENSION_MAP[d.trim()] || d.trim();
+    return { name: mapped };
+  });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
@@ -46,9 +62,7 @@ export default async function handler(req, res) {
             { name: 'conversions' }, { name: 'totalRevenue' },
             { name: 'transactions' },
           ],
-      dimensions: dimensions
-        ? dimensions.split(',').map(d => ({ name: d.trim() }))
-        : [{ name: 'date' }],
+      dimensions: mapDimensions(dimensions),
       limit: parseInt(limit || '10000'),
       returnPropertyQuota: true,
     };

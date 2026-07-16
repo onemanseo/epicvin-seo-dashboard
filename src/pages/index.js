@@ -322,12 +322,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Pages table */}
-          {dimension === 'page' && gscRows.length > 0 && (
+          {/* Pages table with revenue */}
+          {dimension === 'page' && (
             <div className="dashboard-grid mb-6">
               <div className="col-span-full card">
                 <div className="card-header">
-                  <span className="card-title">Top Pages by Clicks</span>
+                  <span className="card-title">Top Pages by Clicks & Revenue</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -336,20 +336,39 @@ export default function Dashboard() {
                         <th className="text-left py-2 pr-4">Page</th>
                         <th className="text-right py-2 px-4">Clicks</th>
                         <th className="text-right py-2 px-4">Impressions</th>
-                        <th className="text-right py-2 px-4">CTR</th>
+                        <th className="text-right py-2 px-4">Revenue</th>
+                        <th className="text-right py-2 px-4">Items Purchased</th>
                         <th className="text-right py-2 pl-4">Position</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {gscRows.slice(0, 50).map((row, i) => (
-                        <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/50">
-                          <td className="py-2 pr-4 text-brand-300 truncate max-w-xs">{row.date}</td>
-                          <td className="text-right py-2 px-4">{row.clicks?.toLocaleString() || 0}</td>
-                          <td className="text-right py-2 px-4">{row.impressions?.toLocaleString() || 0}</td>
-                          <td className="text-right py-2 px-4">{row.ctr ? `${(row.ctr * 100).toFixed(1)}%` : '0.0%'}</td>
-                          <td className="text-right py-2 pl-4">{row.position?.toFixed(1) || '—'}</td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        // Merge GSC page data with GA4 revenue by URL path
+                        const revByPath = {};
+                        ecomRows.forEach(r => {
+                          const path = r.date || '—';
+                          revByPath[path] = { revenue: r.itemRevenue || 0, purchased: r.itemsPurchased || 0 };
+                        });
+
+                        const merged = gscRows.map(r => {
+                          // Extract path from full URL
+                          let path = r.date || '—';
+                          try { path = new URL(r.date).pathname; } catch(e) {}
+                          const rev = revByPath[path] || {};
+                          return { ...r, pagePath: r.date || '—', path, ...rev };
+                        });
+
+                        return merged.slice(0, 50).map((row, i) => (
+                          <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/50">
+                            <td className="py-2 pr-4 text-brand-300 truncate max-w-xs">{row.pagePath}</td>
+                            <td className="text-right py-2 px-4">{row.clicks?.toLocaleString() || 0}</td>
+                            <td className="text-right py-2 px-4">{row.impressions?.toLocaleString() || 0}</td>
+                            <td className="text-right py-2 px-4 text-green-400">${(row.revenue || 0).toLocaleString()}</td>
+                            <td className="text-right py-2 px-4">{row.purchased || 0}</td>
+                            <td className="text-right py-2 pl-4">{row.position?.toFixed(1) || '—'}</td>
+                          </tr>
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>
