@@ -5,3 +5,5 @@ node_modules/
 *.log
 out/
 .vercel
+scripts/oauth-credentials.json
+scripts/oauth-token.json
