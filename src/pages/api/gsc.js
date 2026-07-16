@@ -1,16 +1,33 @@
 // Google Search Console API — Vercel Serverless Function
-// Поддерживает Service Account (VERCEL_SECRET_GOOGLE_CREDENTIALS) 
-// и OAuth2 (VERCEL_OAUTH_TOKEN + VERCEL_OAUTH_CLIENT_ID + VERCEL_OAUTH_CLIENT_SECRET)
 const { google } = require('googleapis');
-const { getAuth } = require('../../lib/google-auth');
 
-const SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly'];
+function getAuth() {
+  const oauthToken = process.env.VERCEL_OAUTH_TOKEN;
+  const serviceAccount = process.env.VERCEL_SECRET_GOOGLE_CREDENTIALS;
+
+  if (oauthToken) {
+    const tokens = JSON.parse(oauthToken);
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.VERCEL_OAUTH_CLIENT_ID,
+      process.env.VERCEL_OAUTH_CLIENT_SECRET
+    );
+    oauth2Client.setCredentials(tokens);
+    return oauth2Client;
+  }
+
+  if (serviceAccount) {
+    const credentials = JSON.parse(serviceAccount);
+    return new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/webmasters.readonly'] });
+  }
+
+  throw new Error('No auth configured');
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    const auth = getAuth(SCOPES);
+    const auth = getAuth();
     const webmasters = google.webmasters({ version: 'v3', auth });
 
     const { siteUrl, startDate, endDate, dimensions } = req.query;
@@ -23,7 +40,7 @@ module.exports = async (req, res) => {
     const defEnd = new Date().toISOString().split('T')[0];
 
     const response = await webmasters.searchanalytics.query({
-      siteUrl: siteUrl,
+      siteUrl,
       requestBody: {
         startDate: startDate || defStart,
         endDate: endDate || defEnd,
