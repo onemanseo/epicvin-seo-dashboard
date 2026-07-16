@@ -2,13 +2,20 @@ import { useState, useEffect } from 'react';
 import MetricCard from '../components/MetricCard';
 import FunnelChart from '../components/FunnelChart';
 import TimeSeriesChart from '../components/TimeSeriesChart';
-import { fetchGSC, fetchGA4, fetchFunnel } from '../lib/api';
+import { fetchGSC, fetchGA4, fetchFunnel, fetchEcommerce } from '../lib/api';
+
+const START_DATE = '2026-03-12';
+const TODAY = new Date().toISOString().split('T')[0];
 
 const PERIODS = [
-  { label: '7d', value: '7' },
-  { label: '30d', value: '30' },
-  { label: '90d', value: '90' },
-  { label: '12m', value: '365' },
+  { label: 'All Time', start: START_DATE, end: TODAY },
+  { label: 'Mar 12–Apr 11', start: '2026-03-12', end: '2026-04-11' },
+  { label: 'Apr 12–May 11', start: '2026-04-12', end: '2026-05-11' },
+  { label: 'May 12–Jun 11', start: '2026-05-12', end: '2026-06-11' },
+  { label: 'Jun 12–Jul 11', start: '2026-06-12', end: '2026-07-11' },
+  { label: 'Jul 12–Now', start: '2026-07-12', end: TODAY },
+  { label: '7d', start: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0], end: TODAY },
+  { label: '30d', start: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0], end: TODAY },
 ];
 
 const DIMENSIONS = [
@@ -20,40 +27,40 @@ const DIMENSIONS = [
 ];
 
 export default function Dashboard() {
-  const [period, setPeriod] = useState('30');
+  const [periodIdx, setPeriodIdx] = useState(0);
   const [dimension, setDimension] = useState('date');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Data stores
   const [gscData, setGscData] = useState(null);
   const [ga4Data, setGa4Data] = useState(null);
   const [funnelData, setFunnelData] = useState(null);
+  const [ecomData, setEcomData] = useState(null);
 
-  // Config from env
   const siteUrl = process.env.NEXT_PUBLIC_GSC_SITE_URL || 'https://epicvin.com/';
   const propertyId = process.env.NEXT_PUBLIC_GA4_PROPERTY_ID || '';
 
   useEffect(() => {
     if (!propertyId) return;
     loadAll();
-  }, [period, dimension]);
+  }, [periodIdx, dimension]);
 
   async function loadAll() {
     setLoading(true);
     setError(null);
-    const end = new Date().toISOString().split('T')[0];
-    const start = new Date(Date.now() - parseInt(period) * 86400000).toISOString().split('T')[0];
+    const period = PERIODS[periodIdx];
 
     try {
-      const [gsc, ga4, funnel] = await Promise.all([
-        fetchGSC({ siteUrl, startDate: start, endDate: end, dimensions: dimension }),
-        fetchGA4({ propertyId, startDate: start, endDate: end, dimensions: dimension }),
-        fetchFunnel({ propertyId, startDate: start, endDate: end, dimension }),
+      const [gsc, ga4, funnel, ecom] = await Promise.all([
+        fetchGSC({ siteUrl, startDate: period.start, endDate: period.end, dimensions: dimension }),
+        fetchGA4({ propertyId, startDate: period.start, endDate: period.end, dimensions: dimension }),
+        fetchFunnel({ propertyId, startDate: period.start, endDate: period.end, dimension }),
+        fetchEcommerce({ propertyId, startDate: period.start, endDate: period.end, dimension }),
       ]);
       setGscData(gsc);
       setGa4Data(ga4);
       setFunnelData(funnel);
+      setEcomData(ecom);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -75,8 +82,8 @@ export default function Dashboard() {
 
   const gscRows = parseRows(gscData);
   const ga4Rows = parseRows(ga4Data);
+  const ecomRows = parseRows(ecomData);
 
-  // Aggregate summaries
   const gscTotals = gscRows.reduce((acc, r) => ({
     clicks: (acc.clicks || 0) + (r.clicks || 0),
     impressions: (acc.impressions || 0) + (r.impressions || 0),
@@ -88,7 +95,6 @@ export default function Dashboard() {
     gscTotals.position = gscTotals.position / gscRows.length;
   }
 
-  // Funnel construction
   const funnelSteps = [
     { name: 'Sessions', key: 'sessions', value: ga4Rows.reduce((s, r) => s + (r.sessions || 0), 0) },
     { name: 'Users', key: 'totalUsers', value: ga4Rows.reduce((s, r) => s + (r.totalUsers || 0), 0) },
@@ -97,9 +103,10 @@ export default function Dashboard() {
     { name: 'Revenue', key: 'totalRevenue', value: ga4Rows.reduce((s, r) => s + (r.totalRevenue || 0), 0) },
   ];
 
-  // Revenue metrics
   const totalRevenue = ga4Rows.reduce((s, r) => s + (r.totalRevenue || 0), 0);
-  const conversions = ga4Rows.reduce((s, r) => s + (r.conversions || 0), 0);
+  const transactions = ga4Rows.reduce((s, r) => s + (r.transactions || 0), 0);
+  const itemRevenue = ecomRows.reduce((s, r) => s + (r.itemRevenue || 0), 0);
+  const itemsPurchased = ecomRows.reduce((s, r) => s + (r.itemsPurchased || 0), 0);
   const sessions = ga4Rows.reduce((s, r) => s + (r.sessions || 0), 0);
   const totalUsers = ga4Rows.reduce((s, r) => s + (r.totalUsers || 0), 0);
   const clicks = gscTotals.clicks || 0;
@@ -107,11 +114,11 @@ export default function Dashboard() {
 
   if (!propertyId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f172a]">
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
         <div className="card max-w-lg text-center space-y-4">
           <div className="text-4xl">⚙️</div>
           <h1 className="text-xl font-semibold">EpicVIN SEO Dashboard</h1>
-          <p className="text-slate-400">Set <code className="text-brand-400">NEXT_PUBLIC_GA4_PROPERTY_ID</code> and <code className="text-brand-400">NEXT_PUBLIC_GSC_SITE_URL</code> in Vercel env vars to connect live data.</p>
+          <p className="text-slate-400">Set <code className="text-brand-400">NEXT_PUBLIC_GA4_PROPERTY_ID</code> in Vercel env.</p>
         </div>
       </div>
     );
@@ -124,15 +131,19 @@ export default function Dashboard() {
         <div className="col-span-full flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">EpicVIN SEO Dashboard</h1>
-            <p className="text-slate-400 text-sm mt-1">Organic Performance & Revenue Analytics</p>
+            <p className="text-slate-400 text-sm mt-1">
+              Period: {PERIODS[periodIdx].start} → {PERIODS[periodIdx].end}
+              <span className="ml-2 text-slate-500">| Items purchased: {itemsPurchased.toLocaleString()}</span>
+              <span className="ml-2 text-green-400">| Item revenue: ${itemRevenue.toLocaleString()}</span>
+            </p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            {PERIODS.map(p => (
+            {PERIODS.slice(0, 6).map((p, i) => (
               <button
-                key={p.value}
-                onClick={() => setPeriod(p.value)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
-                  period === p.value
+                key={i}
+                onClick={() => setPeriodIdx(i)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                  periodIdx === i
                     ? 'bg-brand-600 text-white'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
@@ -141,9 +152,18 @@ export default function Dashboard() {
               </button>
             ))}
             <select
+              value={periodIdx}
+              onChange={e => setPeriodIdx(Number(e.target.value))}
+              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
+            >
+              {PERIODS.map((p, i) => (
+                <option key={i} value={i}>{p.label}</option>
+              ))}
+            </select>
+            <select
               value={dimension}
               onChange={e => setDimension(e.target.value)}
-              className="ml-2 bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-3 py-1.5 text-sm"
+              className="bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1.5 text-xs"
             >
               {DIMENSIONS.map(d => (
                 <option key={d.value} value={d.value}>{d.label}</option>
@@ -151,7 +171,7 @@ export default function Dashboard() {
             </select>
             <button
               onClick={loadAll}
-              className="bg-brand-600 hover:bg-brand-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition"
+              className="bg-brand-600 hover:bg-brand-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition"
             >
               ↻ Refresh
             </button>
@@ -173,38 +193,41 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Top-level KPI cards */}
+          {/* KPI cards */}
           <div className="dashboard-grid mb-6">
-            <div className="col-span-6 md:col-span-3 lg:col-span-2">
+            <div className="col-span-4 md:col-span-2">
               <MetricCard title="Organic Clicks" value={clicks} icon="🖱" />
             </div>
-            <div className="col-span-6 md:col-span-3 lg:col-span-2">
+            <div className="col-span-4 md:col-span-2">
               <MetricCard title="Impressions" value={impressions} icon="👁" />
             </div>
-            <div className="col-span-6 md:col-span-3 lg:col-span-2">
+            <div className="col-span-4 md:col-span-2">
               <MetricCard title="Avg CTR" value={gscTotals.ctr} format="percent" icon="📊" />
             </div>
-            <div className="col-span-6 md:col-span-3 lg:col-span-2">
+            <div className="col-span-4 md:col-span-2">
               <MetricCard title="Avg Position" value={gscTotals.position?.toFixed(1)} icon="🎯" />
             </div>
-            <div className="col-span-6 md:col-span-3 lg:col-span-2">
-              <MetricCard title="Organic Sessions" value={sessions} icon="👤" />
+            <div className="col-span-4 md:col-span-2">
+              <MetricCard title="Sessions" value={sessions} icon="👤" />
             </div>
-            <div className="col-span-6 md:col-span-3 lg:col-span-2">
-              <MetricCard title="Total Users" value={totalUsers} icon="👥" />
+            <div className="col-span-4 md:col-span-2">
+              <MetricCard title="Users" value={totalUsers} icon="👥" />
             </div>
           </div>
 
           {/* Revenue row */}
           <div className="dashboard-grid mb-6">
-            <div className="col-span-6 md:col-span-4">
+            <div className="col-span-6 md:col-span-3">
               <MetricCard title="Total Revenue" value={totalRevenue} format="currency" icon="💰" />
             </div>
-            <div className="col-span-6 md:col-span-4">
-              <MetricCard title="Key Events" value={conversions} icon="⚡" />
+            <div className="col-span-6 md:col-span-3">
+              <MetricCard title="Item Revenue" value={itemRevenue} format="currency" icon="🛍️" />
             </div>
-            <div className="col-span-6 md:col-span-4">
-              <MetricCard title="Revenue / Session" value={sessions > 0 ? totalRevenue / sessions : 0} format="currency" icon="📈" />
+            <div className="col-span-6 md:col-span-3">
+              <MetricCard title="Items Purchased" value={itemsPurchased} icon="📦" />
+            </div>
+            <div className="col-span-6 md:col-span-3">
+              <MetricCard title="Transactions" value={transactions} icon="🛒" />
             </div>
           </div>
 
@@ -213,9 +236,9 @@ export default function Dashboard() {
             <FunnelChart data={funnelSteps} title="Organic → Revenue Funnel" />
           </div>
 
-          {/* Time series charts */}
+          {/* Time series */}
           <div className="dashboard-grid mb-6">
-            <div className="col-span-full md:col-span-12">
+            <div className="col-span-full md:col-span-6">
               <TimeSeriesChart
                 data={gscRows}
                 lines={[{ key: 'clicks', label: 'Clicks' }, { key: 'impressions', label: 'Impressions' }]}
@@ -223,45 +246,39 @@ export default function Dashboard() {
                 type="area"
               />
             </div>
-          </div>
-
-          {/* Conversion rate over time */}
-          <div className="dashboard-grid mb-6">
-            <div className="col-span-full md:col-span-6">
-              <TimeSeriesChart
-                data={gscRows}
-                lines={[{ key: 'ctr', label: 'CTR (%)' }]}
-                title="GSC CTR Over Time"
-              />
-            </div>
             <div className="col-span-full md:col-span-6">
               <TimeSeriesChart
                 data={ga4Rows}
-                lines={[
-                  { key: 'sessions', label: 'Sessions' },
-                  { key: 'conversions', label: 'Key Events' },
-                ]}
-                title="Sessions & Key Events"
-              />
-            </div>
-          </div>
-
-          {/* Event time series */}
-          <div className="dashboard-grid mb-6">
-            <div className="col-span-full">
-              <TimeSeriesChart
-                data={ga4Rows}
-                lines={[
-                  { key: 'totalRevenue', label: 'Revenue ($)' },
-                  { key: 'sessions', label: 'Sessions' },
-                ]}
-                title="Revenue & Sessions Over Time"
+                lines={[{ key: 'sessions', label: 'Sessions' }, { key: 'totalRevenue', label: 'Revenue ($)' }]}
+                title="Sessions & Revenue"
                 type="area"
               />
             </div>
           </div>
 
-          {/* Page-level table */}
+          {/* Ecommerce time series */}
+          <div className="dashboard-grid mb-6">
+            <div className="col-span-full md:col-span-6">
+              <TimeSeriesChart
+                data={gscRows}
+                lines={[{ key: 'ctr', label: 'CTR (%)' }]}
+                title="GSC CTR"
+              />
+            </div>
+            <div className="col-span-full md:col-span-6">
+              <TimeSeriesChart
+                data={ecomRows}
+                lines={[
+                  { key: 'itemRevenue', label: 'Item Revenue ($)' },
+                  { key: 'itemsPurchased', label: 'Items Purchased' },
+                ]}
+                title="Ecommerce Revenue & Purchases"
+                type="area"
+              />
+            </div>
+          </div>
+
+          {/* Pages table */}
           {dimension === 'page' && gscRows.length > 0 && (
             <div className="dashboard-grid mb-6">
               <div className="col-span-full card">
@@ -282,14 +299,10 @@ export default function Dashboard() {
                     <tbody>
                       {gscRows.slice(0, 50).map((row, i) => (
                         <tr key={i} className="border-b border-slate-800 hover:bg-slate-800/50">
-                          <td className="py-2 pr-4 text-brand-300 truncate max-w-xs">
-                            {row.date}
-                          </td>
+                          <td className="py-2 pr-4 text-brand-300 truncate max-w-xs">{row.date}</td>
                           <td className="text-right py-2 px-4">{row.clicks?.toLocaleString() || 0}</td>
                           <td className="text-right py-2 px-4">{row.impressions?.toLocaleString() || 0}</td>
-                          <td className="text-right py-2 px-4">
-                            {row.ctr ? `${(row.ctr * 100).toFixed(1)}%` : '0.0%'}
-                          </td>
+                          <td className="text-right py-2 px-4">{row.ctr ? `${(row.ctr * 100).toFixed(1)}%` : '0.0%'}</td>
                           <td className="text-right py-2 pl-4">{row.position?.toFixed(1) || '—'}</td>
                         </tr>
                       ))}
@@ -300,10 +313,9 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Footer */}
           <div className="dashboard-grid">
             <div className="col-span-full text-center text-xs text-slate-600 py-4">
-              EpicVIN SEO Dashboard · Data from GSC + GA4 · Next.js + Vercel
+              EpicVIN SEO Dashboard · Data from GSC + GA4 · Since Mar 12, 2026
             </div>
           </div>
         </>

@@ -1,4 +1,4 @@
-// GA4 funnel report
+// GA4 ecommerce metrics — отдельный запрос (itemRevenue несовместим с totalRevenue)
 const { google } = require('googleapis');
 
 function getAuth() {
@@ -35,30 +35,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'propertyId is required' });
     }
 
-    // Compatible metrics that are available on epicvin.com
-    const d = dimension || 'date';
-    
-    // Get sessions, users, pageviews, events
-    const baseMetrics = {
-      dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
-      metrics: [
-        { name: 'sessions' }, { name: 'totalUsers' },
-        { name: 'screenPageViews' }, { name: 'eventCount' },
-        { name: 'conversions' }, { name: 'totalRevenue' },
-        { name: 'transactions' },
-      ],
-      dimensions: [{ name: d }],
-      limit: 25000,
-    };
-
     const response = await analyticsData.properties.runReport({
       property: `properties/${propertyId}`,
-      requestBody: baseMetrics,
+      requestBody: {
+        dateRanges: [{ startDate: startDate || '30daysAgo', endDate: endDate || 'today' }],
+        metrics: [
+          { name: 'itemRevenue' },
+          { name: 'itemsPurchased' },
+          { name: 'purchaseRevenue' },
+          { name: 'transactions' },
+        ],
+        dimensions: [{ name: dimension || 'date' }],
+        limit: 25000,
+      },
     });
 
     res.status(200).json(response.data);
   } catch (error) {
-    console.error('GA4 Funnel API Error:', error.message);
+    console.error('GA4 Ecommerce API Error:', error.message);
     res.status(500).json({ error: error.message });
   }
 };

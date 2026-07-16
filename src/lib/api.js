@@ -20,3 +20,10 @@ export async function fetchFunnel(params = {}) {
   if (!res.ok) throw new Error(`Funnel API: ${res.status} ${res.statusText}`);
   return res.json();
 }
+
+export async function fetchEcommerce(params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${API_BASE}/ga4-ecommerce?${qs}`);
+  if (!res.ok) throw new Error(`Ecommerce API: ${res.status} ${res.statusText}`);
+  return res.json();
+}

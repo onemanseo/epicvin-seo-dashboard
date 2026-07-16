@@ -45,6 +45,8 @@ export default async function handler(req, res) {
           : [
               { name: 'sessions' }, { name: 'totalUsers' },
               { name: 'screenPageViews' }, { name: 'eventCount' },
+              { name: 'conversions' }, { name: 'totalRevenue' },
+              { name: 'transactions' },
             ],
         dimensions: dimensions
           ? dimensions.split(',').map(d => ({ name: d.trim() }))
