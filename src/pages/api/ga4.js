@@ -1,22 +1,14 @@
 // Google Analytics 4 Data API — Vercel Serverless Function
 const { google } = require('googleapis');
+const { getAuth } = require('../../lib/google-auth');
 
 const SCOPES = ['https://www.googleapis.com/auth/analytics.readonly'];
-
-function getAuthClient() {
-  const credentials = JSON.parse(process.env.VERCEL_SECRET_GOOGLE_CREDENTIALS || '{}');
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: SCOPES,
-  });
-  return auth;
-}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    const auth = getAuthClient();
+    const auth = getAuth(SCOPES);
     const analyticsData = google.analyticsdata({ version: 'v1beta', auth });
 
     const { propertyId, startDate, endDate, metrics, dimensions, limit } = req.query;
@@ -42,7 +34,6 @@ module.exports = async (req, res) => {
               { name: 'conversions' },
               { name: 'totalRevenue' },
               { name: 'itemRevenue' },
-              { name: 'eventCount' },
               { name: 'purchaseRevenue' },
             ],
         dimensions: dimensions

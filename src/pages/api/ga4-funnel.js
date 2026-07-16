@@ -1,23 +1,14 @@
 // E-commerce funnel report — Vercel Serverless Function
-// Запрашивает воронку: sessions → VIN interactions → checkouts → purchases → revenue
 const { google } = require('googleapis');
+const { getAuth } = require('../../lib/google-auth');
 
 const SCOPES = ['https://www.googleapis.com/auth/analytics.readonly'];
-
-function getAuthClient() {
-  const credentials = JSON.parse(process.env.VERCEL_SECRET_GOOGLE_CREDENTIALS || '{}');
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: SCOPES,
-  });
-  return auth;
-}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    const auth = getAuthClient();
+    const auth = getAuth(SCOPES);
     const analyticsData = google.analyticsdata({ version: 'v1beta', auth });
     const { propertyId, startDate, endDate, dimension } = req.query;
 
@@ -28,11 +19,9 @@ module.exports = async (req, res) => {
     const dimensionsList = [{ name: dimension || 'date' }];
     const metricsList = [
       { name: 'sessions' },
-      { name: 'sessionConversionRate' },       // sessions with key events
+      { name: 'sessionConversionRate' },
       { name: 'totalUsers' },
       { name: 'screenPageViews' },
-      { name: 'eventCount' },
-      // E-commerce funnel
       { name: 'itemsViewed' },
       { name: 'itemsAddedToCart' },
       { name: 'itemsCheckedOut' },

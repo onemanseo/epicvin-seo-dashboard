@@ -1,23 +1,16 @@
 // Google Search Console API — Vercel Serverless Function
-// Google Service Account JSON берётся из VERCEL_SECRET_GOOGLE_CREDENTIALS
+// Поддерживает Service Account (VERCEL_SECRET_GOOGLE_CREDENTIALS) 
+// и OAuth2 (VERCEL_OAUTH_TOKEN + VERCEL_OAUTH_CLIENT_ID + VERCEL_OAUTH_CLIENT_SECRET)
 const { google } = require('googleapis');
+const { getAuth } = require('../../lib/google-auth');
 
 const SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly'];
-
-function getAuthClient() {
-  const credentials = JSON.parse(process.env.VERCEL_SECRET_GOOGLE_CREDENTIALS || '{}');
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: SCOPES,
-  });
-  return auth;
-}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
-    const auth = getAuthClient();
+    const auth = getAuth(SCOPES);
     const webmasters = google.webmasters({ version: 'v3', auth });
 
     const { siteUrl, startDate, endDate, dimensions } = req.query;
