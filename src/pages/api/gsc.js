@@ -47,9 +47,16 @@ export default async function handler(req, res) {
       aggregationType: 'auto',
     };
 
-    // Branded / non-branded filter
+    // Branded / non-branded filter — requires 'query' in dimensions
     if (branded === 'branded' || branded === 'nonbranded') {
+      const brandTerms = ['epicvin', 'epic vin', 'epicvin.com'];
       const brandRegex = 'epicvin|epic vin|epicvin\\.com';
+
+      // Include query dimension for filtering
+      const dims = dimensions ? dimensions.split(',') : ['date'];
+      if (!dims.includes('query')) dims.push('query');
+      requestBody.dimensions = dims;
+
       requestBody.dimensionFilterGroups = [{
         filters: [{
           dimension: 'query',
